@@ -1,118 +1,247 @@
 name: Build conda package
-
 on:
-  workflow_dispatch:
-  workflow_call:
+  push:
+    branches:
+      - main
 
 jobs:
   deploy_linux:
-    runs-on: ${{ matrix.os }}
     container: ${{ matrix.container }}
-
-    strategy:
-      fail-fast: false
-      matrix:
-        os: ["ubuntu-latest"]
-        python-version: ["3.10"]
-        container: ["quay.io/pypa/manylinux_2_28_x86_64"]
-
+    runs-on: ${{ matrix.os }}
     steps:
+      - name: Start Energy Measurement
+        uses: green-coding-solutions/eco-ci-energy-estimation@862050e4f01f65b1436e5eca18ba4bd85562f0de
+        with:
+          json-output: true
+          task: start-measurement
       - uses: actions/checkout@v4
-
       - uses: conda-incubator/setup-miniconda@v2
         with:
-          miniconda-version: "latest"
           activate-environment: ../deploy-env
+          miniconda-version: latest
           python-version: ${{ matrix.python-version }}
-
       - name: Install build deps
-        shell: bash -l {0}
-        run: |
-          git config --global --add safe.directory '*'
-          conda install anaconda-client rattler-build python=${{ matrix.python-version }} -c conda-forge
+        run: 'git config --global --add safe.directory ''*''
+
+          conda install anaconda-client rattler-build python=${{ matrix.python-version
+          }} -c conda-forge
+
           pip install setuptools-scm>=8 toml pyyaml
 
+          '
+        shell: bash -l {0}
+      - id: measurement-4
+        name: Record Measurement After Install build deps
+        uses: green-coding-solutions/eco-ci-energy-estimation@862050e4f01f65b1436e5eca18ba4bd85562f0de
+        with:
+          json-output: true
+          label: Install build deps
+          task: get-measurement
       - name: Build conda package
-        shell: bash -l {0}
-        run: |
-          python package/moleculekit/insert_placeholder_values.py
-          rattler-build build --recipe ./package/moleculekit/recipe.yaml --output-dir ../pkg/ --no-include-recipe -c acellera -c conda-forge
+        run: 'python package/moleculekit/insert_placeholder_values.py
 
+          rattler-build build --recipe ./package/moleculekit/recipe.yaml --output-dir
+          ../pkg/ --no-include-recipe -c acellera -c conda-forge
+
+          '
+        shell: bash -l {0}
+      - id: measurement-6
+        name: Record Measurement After Build conda package
+        uses: green-coding-solutions/eco-ci-energy-estimation@862050e4f01f65b1436e5eca18ba4bd85562f0de
+        with:
+          json-output: true
+          label: Build conda package
+          task: get-measurement
       - name: Upload to conda
-        shell: bash -l {0}
-        run: |
-          anaconda -t ${{ secrets.ANACONDA_TOKEN_BASIC }} upload -u acellera ../pkg/*/moleculekit-*.conda
+        run: 'anaconda -t ${{ secrets.ANACONDA_TOKEN_BASIC }} upload -u acellera ../pkg/*/moleculekit-*.conda
 
+          '
+        shell: bash -l {0}
+      - id: measurement-8
+        name: Record Measurement After Upload to conda
+        uses: green-coding-solutions/eco-ci-energy-estimation@862050e4f01f65b1436e5eca18ba4bd85562f0de
+        with:
+          json-output: true
+          label: Upload to conda
+          task: get-measurement
+      - id: display-measurement
+        name: Display Energy Results
+        uses: green-coding-solutions/eco-ci-energy-estimation@862050e4f01f65b1436e5eca18ba4bd85562f0de
+        with:
+          json-output: true
+          task: display-results
+      - name: Save Total Energy Consumption Data
+        run: echo '${{ steps.final-measurement.outputs.data-total-json }}' > total_energy_consumption.json
+      - name: Upload Energy Consumption Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: total-energy-consumption
+          path: total_energy_consumption.json
+    strategy:
+      fail-fast: false
+      matrix:
+        container:
+          - quay.io/pypa/manylinux_2_28_x86_64
+        os:
+          - ubuntu-latest
+        python-version:
+          - '3.10'
   deploy_osx:
     runs-on: ${{ matrix.os }}
+    steps:
+      - name: Start Energy Measurement
+        uses: green-coding-solutions/eco-ci-energy-estimation@862050e4f01f65b1436e5eca18ba4bd85562f0de
+        with:
+          json-output: true
+          task: start-measurement
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          activate-environment: ../deploy-env
+          miniconda-version: latest
+          python-version: ${{ matrix.python-version }}
+      - name: Install build deps
+        run: 'git config --global --add safe.directory ''*''
 
+          conda install anaconda-client rattler-build python=${{ matrix.python-version
+          }} -c conda-forge
+
+          pip install setuptools-scm>=8 toml pyyaml
+
+          '
+        shell: bash -l {0}
+      - id: measurement-5
+        name: Record Measurement After Install build deps
+        uses: green-coding-solutions/eco-ci-energy-estimation@862050e4f01f65b1436e5eca18ba4bd85562f0de
+        with:
+          json-output: true
+          label: Install build deps
+          task: get-measurement
+      - name: Build conda package
+        run: 'python package/moleculekit/insert_placeholder_values.py
+
+          rattler-build build --recipe ./package/moleculekit/recipe.yaml --output-dir
+          ../pkg/ --no-include-recipe -c acellera -c conda-forge
+
+          '
+        shell: bash -l {0}
+      - id: measurement-7
+        name: Record Measurement After Build conda package
+        uses: green-coding-solutions/eco-ci-energy-estimation@862050e4f01f65b1436e5eca18ba4bd85562f0de
+        with:
+          json-output: true
+          label: Build conda package
+          task: get-measurement
+      - name: Upload to conda
+        run: 'anaconda -t ${{ secrets.ANACONDA_TOKEN_BASIC }} upload -u acellera ../pkg/*/moleculekit-*.conda
+
+          '
+        shell: bash -l {0}
+      - id: measurement-9
+        name: Record Measurement After Upload to conda
+        uses: green-coding-solutions/eco-ci-energy-estimation@862050e4f01f65b1436e5eca18ba4bd85562f0de
+        with:
+          json-output: true
+          label: Upload to conda
+          task: get-measurement
+      - id: display-measurement
+        name: Display Energy Results
+        uses: green-coding-solutions/eco-ci-energy-estimation@862050e4f01f65b1436e5eca18ba4bd85562f0de
+        with:
+          json-output: true
+          task: display-results
+      - name: Save Total Energy Consumption Data
+        run: echo '${{ steps.final-measurement.outputs.data-total-json }}' > total_energy_consumption.json
+      - name: Upload Energy Consumption Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: total-energy-consumption
+          path: total_energy_consumption.json
     strategy:
       fail-fast: false
       matrix:
-        os: ["macos-latest", "macos-13"]
-        python-version: ["3.10"]
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: ilammy/msvc-dev-cmd@v1
-
-      - uses: conda-incubator/setup-miniconda@v3
-        with:
-          miniconda-version: "latest"
-          activate-environment: ../deploy-env
-          python-version: ${{ matrix.python-version }}
-
-      - name: Install build deps
-        shell: bash -l {0}
-        run: |
-          git config --global --add safe.directory '*'
-          conda install anaconda-client rattler-build python=${{ matrix.python-version }} -c conda-forge
-          pip install setuptools-scm>=8 toml pyyaml
-
-      - name: Build conda package
-        shell: bash -l {0}
-        run: |
-          python package/moleculekit/insert_placeholder_values.py
-          rattler-build build --recipe ./package/moleculekit/recipe.yaml --output-dir ../pkg/ --no-include-recipe -c acellera -c conda-forge
-
-      - name: Upload to conda
-        shell: bash -l {0}
-        run: |
-          anaconda -t ${{ secrets.ANACONDA_TOKEN_BASIC }} upload -u acellera ../pkg/*/moleculekit-*.conda
-
+        os:
+          - macos-latest
+          - macos-13
+        python-version:
+          - '3.10'
   windows_build:
     runs-on: ${{ matrix.os }}
+    steps:
+      - name: Start Energy Measurement
+        uses: green-coding-solutions/eco-ci-energy-estimation@862050e4f01f65b1436e5eca18ba4bd85562f0de
+        with:
+          json-output: true
+          task: start-measurement
+      - uses: actions/checkout@v4
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          activate-environment: ../deploy-env
+          miniconda-version: latest
+          python-version: ${{ matrix.python-version }}
+      - name: Install build deps
+        run: 'git config --global --add safe.directory ''*''
 
+          conda install anaconda-client rattler-build python=${{ matrix.python-version
+          }} -c conda-forge
+
+          pip install setuptools-scm>=8 toml pyyaml
+
+          '
+        shell: bash -l {0}
+      - id: measurement-4
+        name: Record Measurement After Install build deps
+        uses: green-coding-solutions/eco-ci-energy-estimation@862050e4f01f65b1436e5eca18ba4bd85562f0de
+        with:
+          json-output: true
+          label: Install build deps
+          task: get-measurement
+      - name: Build conda package
+        run: 'python package/moleculekit/insert_placeholder_values.py
+
+          rattler-build build --recipe ./package/moleculekit/recipe.yaml --variant-config
+          ./package/moleculekit/windows_variants.yaml --output-dir ../pkg/ --no-include-recipe
+          -c acellera -c conda-forge
+
+          '
+        shell: bash -l {0}
+      - id: measurement-6
+        name: Record Measurement After Build conda package
+        uses: green-coding-solutions/eco-ci-energy-estimation@862050e4f01f65b1436e5eca18ba4bd85562f0de
+        with:
+          json-output: true
+          label: Build conda package
+          task: get-measurement
+      - name: Upload to conda
+        run: 'anaconda -t ${{ secrets.ANACONDA_TOKEN_BASIC }} upload -u acellera ../pkg/*/moleculekit-*.conda
+
+          '
+        shell: bash -l {0}
+      - id: measurement-8
+        name: Record Measurement After Upload to conda
+        uses: green-coding-solutions/eco-ci-energy-estimation@862050e4f01f65b1436e5eca18ba4bd85562f0de
+        with:
+          json-output: true
+          label: Upload to conda
+          task: get-measurement
+      - id: display-measurement
+        name: Display Energy Results
+        uses: green-coding-solutions/eco-ci-energy-estimation@862050e4f01f65b1436e5eca18ba4bd85562f0de
+        with:
+          json-output: true
+          task: display-results
+      - name: Save Total Energy Consumption Data
+        run: echo '${{ steps.final-measurement.outputs.data-total-json }}' > total_energy_consumption.json
+      - name: Upload Energy Consumption Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: total-energy-consumption
+          path: total_energy_consumption.json
     strategy:
       fail-fast: false
       matrix:
-        os: ["windows-2022"]
-        python-version: ["3.10"]
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: conda-incubator/setup-miniconda@v3
-        with:
-          miniconda-version: "latest"
-          activate-environment: ../deploy-env
-          python-version: ${{ matrix.python-version }}
-
-      - name: Install build deps
-        shell: bash -l {0}
-        run: |
-          git config --global --add safe.directory '*'
-          conda install anaconda-client rattler-build python=${{ matrix.python-version }} -c conda-forge
-          pip install setuptools-scm>=8 toml pyyaml
-
-      - name: Build conda package
-        shell: bash -l {0}
-        run: |
-          python package/moleculekit/insert_placeholder_values.py
-          rattler-build build --recipe ./package/moleculekit/recipe.yaml --variant-config ./package/moleculekit/windows_variants.yaml --output-dir ../pkg/ --no-include-recipe -c acellera -c conda-forge
-
-      - name: Upload to conda
-        shell: bash -l {0}
-        run: |
-          anaconda -t ${{ secrets.ANACONDA_TOKEN_BASIC }} upload -u acellera ../pkg/*/moleculekit-*.conda
+        os:
+          - windows-2022
+        python-version:
+          - '3.10'

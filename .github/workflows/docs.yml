@@ -1,57 +1,97 @@
 name: Build docs
-
 on:
-  workflow_dispatch:
-  workflow_call:
+  push:
+    branches:
+      - main
 
 jobs:
   makedocs:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: "read"
-      id-token: "write"
-
     defaults:
       run:
         shell: bash -l {0}
-
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: ubuntu-latest
     steps:
+      - name: Start Energy Measurement
+        uses: green-coding-solutions/eco-ci-energy-estimation@862050e4f01f65b1436e5eca18ba4bd85562f0de
+        with:
+          json-output: true
+          task: start-measurement
       - uses: actions/checkout@v4
-
       - name: Set up Cloud SDK
         uses: google-github-actions/auth@v1
         with:
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER_DOCS }}
           service_account: ${{ secrets.GCP_DOC_SERVICE_ACCOUNT }}
-
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER_DOCS
+            }}
       - uses: conda-incubator/setup-miniconda@v3
         with:
-          python-version: 3.12
           channels: acellera,conda-forge,defaults
-
+          python-version: 3.12
       - name: Install conda deps
-        run: |
-          conda install -y -q --file extra_requirements.txt nbconvert sphinx=6.1.3 python=3.9
-          pip install pydata-sphinx-theme==0.13.1 sphinx-argparse sphinx-notfound-page sphinx-sitemap
+        run: 'conda install -y -q --file extra_requirements.txt nbconvert sphinx=6.1.3
+          python=3.9
+
+          pip install pydata-sphinx-theme==0.13.1 sphinx-argparse sphinx-notfound-page
+          sphinx-sitemap
+
           pip install .
+
           # pdb2pqr is downgrading docutils for some reason and causes failures
+
           pip install docutils==0.19
 
-      - name: Generate rst docs
-        run: |
-          cd doc; make rst
-
-      - name: Publish to GCP intermediate docs bucket
-        uses: "google-github-actions/upload-cloud-storage@v1"
+          '
+      - id: measurement-5
+        name: Record Measurement After Install conda deps
+        uses: green-coding-solutions/eco-ci-energy-estimation@862050e4f01f65b1436e5eca18ba4bd85562f0de
         with:
-          path: "doc/source"
-          destination: "software-acellera-intermediate/public_docs/moleculekit/${{ github.ref_name }}"
+          json-output: true
+          label: Install conda deps
+          task: get-measurement
+      - name: Generate rst docs
+        run: 'cd doc; make rst
 
+          '
+      - id: measurement-7
+        name: Record Measurement After Generate rst docs
+        uses: green-coding-solutions/eco-ci-energy-estimation@862050e4f01f65b1436e5eca18ba4bd85562f0de
+        with:
+          json-output: true
+          label: Generate rst docs
+          task: get-measurement
+      - name: Publish to GCP intermediate docs bucket
+        uses: google-github-actions/upload-cloud-storage@v1
+        with:
+          destination: software-acellera-intermediate/public_docs/moleculekit/${{
+            github.ref_name }}
+          path: doc/source
       - name: Write update file to upload
         run: echo "Updated" > update
-
-      - name: Upload "update" file to trigger new docs
-        uses: "google-github-actions/upload-cloud-storage@v1"
+      - id: measurement-10
+        name: Record Measurement After Write update file to upload
+        uses: green-coding-solutions/eco-ci-energy-estimation@862050e4f01f65b1436e5eca18ba4bd85562f0de
         with:
-          path: "update"
-          destination: "software-acellera-intermediate/"
+          json-output: true
+          label: Write update file to upload
+          task: get-measurement
+      - name: Upload "update" file to trigger new docs
+        uses: google-github-actions/upload-cloud-storage@v1
+        with:
+          destination: software-acellera-intermediate/
+          path: update
+      - id: display-measurement
+        name: Display Energy Results
+        uses: green-coding-solutions/eco-ci-energy-estimation@862050e4f01f65b1436e5eca18ba4bd85562f0de
+        with:
+          json-output: true
+          task: display-results
+      - name: Save Total Energy Consumption Data
+        run: echo '${{ steps.final-measurement.outputs.data-total-json }}' > total_energy_consumption.json
+      - name: Upload Energy Consumption Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: total-energy-consumption
+          path: total_energy_consumption.json

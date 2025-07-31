@@ -1,57 +1,102 @@
 name: Emscripten/Pyodide build
-
 on:
-  workflow_dispatch:
-  workflow_call:
+  push:
+    branches:
+      - main
 
 jobs:
   build-wasm-emscripten:
-    permissions:
-      contents: read # to fetch code (actions/checkout)
     name: Build moleculekit distribution for Pyodide
+    permissions:
+      contents: read
     runs-on: ubuntu-22.04
-
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: pypa/cibuildwheel@42728e866bbc80d544a70825bd9990b9a26f1a50 # 2.23.1
-        env:
-          CIBW_PLATFORM: pyodide
-          CIBW_TEST_SKIP: "*pyodide*"
-
-      - name: Upload wheel artifact(s)
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - name: Start Energy Measurement
+        uses: green-coding-solutions/eco-ci-energy-estimation@862050e4f01f65b1436e5eca18ba4bd85562f0de
         with:
+          json-output: true
+          task: start-measurement
+      - uses: actions/checkout@v4
+      - env:
+          CIBW_PLATFORM: pyodide
+          CIBW_TEST_SKIP: '*pyodide*'
+        uses: pypa/cibuildwheel@42728e866bbc80d544a70825bd9990b9a26f1a50
+      - name: Upload wheel artifact(s)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          if-no-files-found: error
           name: cp312-pyodide_wasm32
           path: ./wheelhouse/*.whl
-          if-no-files-found: error
-
+      - id: display-measurement
+        name: Display Energy Results
+        uses: green-coding-solutions/eco-ci-energy-estimation@862050e4f01f65b1436e5eca18ba4bd85562f0de
+        with:
+          json-output: true
+          task: display-results
+      - name: Save Total Energy Consumption Data
+        run: echo '${{ steps.final-measurement.outputs.data-total-json }}' > total_energy_consumption.json
+      - name: Upload Energy Consumption Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: total-energy-consumption
+          path: total_energy_consumption.json
   upload-wheels:
     name: Upload WASM wheels to Anaconda
-    runs-on: ubuntu-22.04
+    needs:
+      - build-wasm-emscripten
     permissions: {}
-    needs: [build-wasm-emscripten]
-
+    runs-on: ubuntu-22.04
     steps:
+      - name: Start Energy Measurement
+        uses: green-coding-solutions/eco-ci-energy-estimation@862050e4f01f65b1436e5eca18ba4bd85562f0de
+        with:
+          json-output: true
+          task: start-measurement
       - uses: conda-incubator/setup-miniconda@v3
         with:
-          miniconda-version: "latest"
           activate-environment: ../deploy-env
-          python-version: "3.13"
-
+          miniconda-version: latest
+          python-version: '3.13'
       - name: Install anaconda-client
-        shell: bash -l {0}
-        run: |
-          conda install anaconda-client -c conda-forge
+        run: 'conda install anaconda-client -c conda-forge
 
+          '
+        shell: bash -l {0}
+      - id: measurement-3
+        name: Record Measurement After Install anaconda-client
+        uses: green-coding-solutions/eco-ci-energy-estimation@862050e4f01f65b1436e5eca18ba4bd85562f0de
+        with:
+          json-output: true
+          label: Install anaconda-client
+          task: get-measurement
       - name: Download all the dists
         uses: actions/download-artifact@v4
         with:
-          pattern: "*_wasm32"
-          path: dist/
           merge-multiple: true
-
+          path: dist/
+          pattern: '*_wasm32'
       - name: Upload wheel to conda
+        run: 'anaconda -t ${{ secrets.ANACONDA_TOKEN_BASIC }} upload -u acellera dist/moleculekit-*.whl
+
+          '
         shell: bash -l {0}
-        run: |
-          anaconda -t ${{ secrets.ANACONDA_TOKEN_BASIC }} upload -u acellera dist/moleculekit-*.whl
+      - id: measurement-6
+        name: Record Measurement After Upload wheel to conda
+        uses: green-coding-solutions/eco-ci-energy-estimation@862050e4f01f65b1436e5eca18ba4bd85562f0de
+        with:
+          json-output: true
+          label: Upload wheel to conda
+          task: get-measurement
+      - id: display-measurement
+        name: Display Energy Results
+        uses: green-coding-solutions/eco-ci-energy-estimation@862050e4f01f65b1436e5eca18ba4bd85562f0de
+        with:
+          json-output: true
+          task: display-results
+      - name: Save Total Energy Consumption Data
+        run: echo '${{ steps.final-measurement.outputs.data-total-json }}' > total_energy_consumption.json
+      - name: Upload Energy Consumption Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: total-energy-consumption
+          path: total_energy_consumption.json
